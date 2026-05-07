@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { io } from 'socket.io-client';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../components/Toast';
@@ -135,6 +136,29 @@ export default function Projects() {
 
   useEffect(() => {
     fetchProjects();
+  }, []);
+
+  useEffect(() => {
+    const token = localStorage.getItem('flowboard_token');
+    if (!token) return undefined;
+    const socket = io(import.meta.env.VITE_API_URL || 'http://localhost:3000', {
+      auth: { token },
+      transports: ['websocket'],
+    });
+
+    socket.on('projects:changed', payload => {
+      if (!payload) return;
+      const { action } = payload;
+      if (action === 'created' && payload.project) {
+        setProjects(prev => [payload.project, ...prev.filter(p => p.id !== payload.project.id)]);
+      } else if (action === 'updated' && payload.project) {
+        setProjects(prev => prev.map(p => (p.id === payload.project.id ? payload.project : p)));
+      } else if (action === 'deleted' && payload.projectId) {
+        setProjects(prev => prev.filter(p => p.id !== payload.projectId));
+      }
+    });
+
+    return () => socket.disconnect();
   }, []);
 
   async function fetchProjects() {
