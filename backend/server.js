@@ -18,9 +18,27 @@ const server = http.createServer(app);
 const prisma = new PrismaClient();
 const PORT = process.env.PORT || 3000;
 
+const frontendCfg = (process.env.FRONTEND_URL || 'http://localhost:5173')
+  .split(',')
+  .map((s) => s.trim())
+  .filter(Boolean);
+
+function originAllowed(origin) {
+  if (!origin) return true; // allow non-browser requests like server-to-server
+  if (frontendCfg.includes(origin)) return true;
+  // allow values set without protocol (e.g. example.up.railway.app)
+  if (frontendCfg.some((u) => origin === `https://${u}` || origin === `http://${u}`)) return true;
+  // allow any Railway deployed frontend (conservative)
+  if (origin.endsWith('.up.railway.app')) return true;
+  return false;
+}
+
 const io = new SocketIOServer(server, {
   cors: {
-    origin: process.env.FRONTEND_URL || 'http://localhost:5173',
+    origin: (origin, callback) => {
+      const ok = originAllowed(origin);
+      callback(null, ok);
+    },
     methods: ['GET', 'POST'],
     credentials: true,
   },
@@ -63,7 +81,13 @@ io.on('connection', socket => {
 
 app.use(helmet());
 app.use(cors({
-  origin: process.env.FRONTEND_URL || 'http://localhost:5173',
+  origin: (origin, callback) => {
+    const ok = originAllowed(origin);
+    if (!ok) {
+      return callback(new Error('CORS not allowed for origin: ' + origin), false);
+    }
+    callback(null, true);
+  },
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization'],
   credentials: true,
