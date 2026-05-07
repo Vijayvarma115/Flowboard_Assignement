@@ -1,5 +1,4 @@
 import nodemailer from 'nodemailer';
-import sgMail from '@sendgrid/mail';
 
 function createTransportInstance({ host, port, secure, user, pass } = {}) {
   return nodemailer.createTransport({
@@ -100,28 +99,6 @@ export async function sendMentionEmail({ recipientName, recipientEmail, actorNam
 
   // final fallback: return false and log full error for investigation
   console.error('❌ All email send attempts failed for', recipientEmail);
-
-  // If SendGrid API key is configured, try HTTP fallback
-  const sendgridKey = process.env.SENDGRID_API_KEY;
-  if (sendgridKey) {
-    try {
-      sgMail.setApiKey(sendgridKey);
-      const msg = {
-        to: recipientEmail,
-        from: from,
-        subject,
-        text,
-        html,
-      };
-      await sgMail.send(msg);
-      console.log(`✅ Email sent to ${recipientEmail} via SendGrid`);
-      return true;
-    } catch (sgErr) {
-      console.error('❌ SendGrid send failed:', sgErr && sgErr.message ? sgErr.message : sgErr);
-    }
-  } else {
-    console.log('ℹ️ No SENDGRID_API_KEY configured for HTTP fallback');
-  }
 
   return false;
 }
