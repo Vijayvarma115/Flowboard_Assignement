@@ -20,10 +20,16 @@ function getTransport() {
 
 export async function sendMentionEmail({ recipientName, recipientEmail, actorName, taskTitle, taskLink, commentContent }) {
   const transport = getTransport();
-  if (!transport) return false;
+  if (!transport) {
+    console.warn('❌ Email config missing - no transport available');
+    return false;
+  }
 
   const from = process.env.SMTP_FROM || process.env.SMTP_USER;
-  if (!from) return false;
+  if (!from) {
+    console.warn('❌ SMTP_FROM not configured');
+    return false;
+  }
 
   const subject = `${actorName} mentioned you in ${taskTitle}`;
   const text = [
@@ -50,13 +56,18 @@ export async function sendMentionEmail({ recipientName, recipientEmail, actorNam
     </div>
   `;
 
-  await transport.sendMail({
-    from,
-    to: recipientEmail,
-    subject,
-    text,
-    html,
-  });
-
-  return true;
+  try {
+    const info = await transport.sendMail({
+      from,
+      to: recipientEmail,
+      subject,
+      text,
+      html,
+    });
+    console.log(`✅ Email sent to ${recipientEmail} (${info.messageId})`);
+    return true;
+  } catch (err) {
+    console.error(`❌ Email send failed to ${recipientEmail}:`, err.message);
+    return false;
+  }
 }

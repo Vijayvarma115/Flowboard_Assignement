@@ -141,6 +141,8 @@ router.post('/:id/comments', validate(commentSchema), async (req, res) => {
     }
 
     const mentionUsers = extractMentionedUsers(req.body.content, task.project.members);
+    console.log(`📝 Comment posted by ${req.user.name}, mentions found:`, mentionUsers.map(u => u.name));
+    
     const comment = await prisma.comment.create({
       data: {
         content: req.body.content,
@@ -153,6 +155,8 @@ router.post('/:id/comments', validate(commentSchema), async (req, res) => {
     });
 
     const notificationRecipients = mentionUsers.filter(user => user.id !== req.user.id);
+    console.log(`📬 Sending notifications to ${notificationRecipients.length} users`);
+    
     if (notificationRecipients.length > 0) {
       await prisma.notification.createMany({
         data: notificationRecipients.map(user => ({
