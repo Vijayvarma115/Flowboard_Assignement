@@ -1,0 +1,145 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id           String                  @id @default(cuid())
+  name         String
+  email        String                  @unique
+  passwordHash String
+  role         Role                    @default(MEMBER)
+  createdAt    DateTime                @default(now())
+  projects     ProjectMember[]
+  memberRequests ProjectMemberRequest[]
+  assignedTasks Task[]                 @relation("assignee")
+  createdTasks  Task[]                 @relation("creator")
+  comments     Comment[]
+  activities   Activity[]
+  notifications Notification[]
+}
+
+model Project {
+  id          String                  @id @default(cuid())
+  name        String
+  description String?
+  deadline    DateTime?
+  isDeleted   Boolean                 @default(false)
+  createdAt   DateTime                @default(now())
+  members     ProjectMember[]
+  memberRequests ProjectMemberRequest[]
+  tasks       Task[]
+  comments    Comment[]
+  activities  Activity[]
+}
+
+model ProjectMember {
+  id        String  @id @default(cuid())
+  project   Project @relation(fields: [projectId], references: [id])
+  projectId String
+  user      User    @relation(fields: [userId], references: [id])
+  userId    String
+
+  @@unique([projectId, userId])
+}
+
+model ProjectMemberRequest {
+  id        String   @id @default(cuid())
+  project   Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  projectId String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId    String
+  status    String   @default("PENDING") // PENDING, APPROVED, REJECTED
+  createdAt DateTime @default(now())
+
+  @@unique([projectId, userId])
+}
+
+model Task {
+  id          String     @id @default(cuid())
+  title       String
+  description String?
+  status      TaskStatus @default(TODO)
+  priority    Priority   @default(MEDIUM)
+  dueDate     DateTime?
+  project     Project    @relation(fields: [projectId], references: [id])
+  projectId   String
+  assignee    User?      @relation("assignee", fields: [assigneeId], references: [id])
+  assigneeId  String?
+  creator     User       @relation("creator", fields: [creatorId], references: [id])
+  creatorId   String
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+  comments    Comment[]
+  activities  Activity[]
+}
+
+model Comment {
+  id             String   @id @default(cuid())
+  content        String
+  mentionUserIds  String[] @default([])
+  task           Task     @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  taskId         String
+  project        Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  projectId      String
+  author         User     @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  authorId       String
+  createdAt      DateTime @default(now())
+}
+
+model Activity {
+  id          String       @id @default(cuid())
+  type        ActivityType
+  description String
+  task        Task?        @relation(fields: [taskId], references: [id], onDelete: SetNull)
+  taskId      String?
+  project     Project      @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  projectId   String
+  user        User?        @relation(fields: [userId], references: [id], onDelete: SetNull)
+  userId      String?
+  createdAt   DateTime     @default(now())
+}
+
+model Notification {
+  id          String   @id @default(cuid())
+  type        String   // "MENTION", "COMMENT_REPLY", etc.
+  title       String
+  message     String
+  taskId      String?
+  commentId   String?
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId      String
+  isRead      Boolean  @default(false)
+  link        String?  // URL to navigate to
+  createdAt   DateTime @default(now())
+}
+
+enum Role {
+  ADMIN
+  MEMBER
+}
+
+enum TaskStatus {
+  TODO
+  IN_PROGRESS
+  IN_REVIEW
+  DONE
+}
+
+enum Priority {
+  LOW
+  MEDIUM
+  HIGH
+}
+
+enum ActivityType {
+  TASK_CREATED
+  TASK_UPDATED
+  TASK_DELETED
+  TASK_COMMENTED
+  COMMENT_MENTIONED
+}
