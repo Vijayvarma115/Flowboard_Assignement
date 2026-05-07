@@ -32,6 +32,13 @@ router.post('/', requireAdmin, validate(projectSchema), async (req, res) => {
       },
       include: { members: { include: { user: { select: { id: true, name: true, email: true } } } } },
     });
+    // Notify connected clients so lists stay in sync
+    try {
+      const io = req.app.get('io');
+      if (io) io.emit('projects:changed', { action: 'created', project });
+    } catch (e) {
+      console.error('Failed to emit project created event', e?.message || e);
+    }
     res.status(201).json({ data: project, message: 'Project created' });
   } catch (err) {
     res.status(500).json({ error: 'Internal server error', details: err.message });
@@ -87,6 +94,12 @@ router.put('/:id', requireAdmin, validate(projectSchema), async (req, res) => {
       data: { name, description, deadline: deadline ? new Date(deadline) : null },
       include: { members: { include: { user: { select: { id: true, name: true, email: true } } } } },
     });
+    try {
+      const io = req.app.get('io');
+      if (io) io.emit('projects:changed', { action: 'updated', project: updated });
+    } catch (e) {
+      console.error('Failed to emit project updated event', e?.message || e);
+    }
     res.json({ data: updated, message: 'Project updated' });
   } catch (err) {
     res.status(500).json({ error: 'Internal server error', details: err.message });
@@ -99,6 +112,12 @@ router.delete('/:id', requireAdmin, async (req, res) => {
     if (!project) return res.status(404).json({ error: 'Not found', details: 'Project not found' });
 
     await prisma.project.update({ where: { id: req.params.id }, data: { isDeleted: true } });
+    try {
+      const io = req.app.get('io');
+      if (io) io.emit('projects:changed', { action: 'deleted', projectId: req.params.id });
+    } catch (e) {
+      console.error('Failed to emit project deleted event', e?.message || e);
+    }
     res.json({ data: null, message: 'Project deleted' });
   } catch (err) {
     res.status(500).json({ error: 'Internal server error', details: err.message });
